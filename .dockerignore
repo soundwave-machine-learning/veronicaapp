@@ -1,0 +1,12 @@
+node_modules
+dist
+data
+backups
+.env
+.env.*
+!.env.example
+.e2e-data
+test-results
+playwright-report
+.git
+*.db
