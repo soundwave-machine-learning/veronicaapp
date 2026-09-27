@@ -271,7 +271,7 @@ code {
 }
 
 @media (min-width: 760px) and (max-width: 1079px) {
-  .topbar-add {
+  .topbar .topbar-add {
     display: none;
   }
   .topnav-link {
@@ -282,7 +282,7 @@ code {
   }
 }
 
-.topbar-add.is-hidden {
+.topbar .topbar-add.is-hidden {
   display: none;
 }
 
@@ -774,7 +774,7 @@ code {
 
 @container (min-width: 440px) {
   .appointment-row {
-    grid-template-columns: 6.8rem minmax(0, 1fr);
+    grid-template-columns: minmax(6.8rem, max-content) minmax(0, 1fr);
     column-gap: 16px;
   }
   .appointment-row-when {
@@ -1306,6 +1306,15 @@ a.simple-row:hover {
 .week-add {
   margin-top: auto;
   align-self: flex-start;
+  white-space: nowrap;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+@media (min-width: 1024px) {
+  .week-add .icon {
+    display: none;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -2072,5 +2081,26 @@ select.input {
   * {
     transition: none !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Very small phones: a little less padding so button labels stay on one line. */
+@media (max-width: 379px) {
+  .card {
+    padding: 16px 14px;
+  }
+  .next-card {
+    border-left-width: 6px;
+  }
+  .btn-action {
+    padding: 8px 8px;
+    gap: 6px;
+    font-size: 1rem;
+  }
+  .next-name {
+    font-size: 1.75rem;
+  }
+  .next-time {
+    font-size: 1.3rem;
   }
 }
