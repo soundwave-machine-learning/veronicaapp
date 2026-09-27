@@ -1,6 +1,9 @@
 /** Prepared text messages. */
 import { formatDateFriendly, formatTime } from './dates.js';
 
+/** Placeholder until the owner enters their own business name in Settings. */
+export const DEFAULT_BUSINESS_NAME = 'My Cleaning Business';
+
 export const DEFAULT_REMINDER_TEMPLATE =
   'Hi {client}, this is a reminder that your cleaning with {business} is scheduled for {date} at {time}. Thank you!';
 

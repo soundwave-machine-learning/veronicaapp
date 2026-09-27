@@ -9,12 +9,9 @@
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_ON_MY_WAY_TEMPLATE, DEFAULT_REMINDER_TEMPLATE } from '../shared/templates.js';
+import { DEFAULT_BUSINESS_NAME, DEFAULT_ON_MY_WAY_TEMPLATE, DEFAULT_REMINDER_TEMPLATE } from '../shared/templates.js';
 
 export type DB = Database.Database;
-
-/** Placeholder until the owner enters their own business name in Settings. */
-export const DEFAULT_BUSINESS_NAME = 'My Cleaning Business';
 
 const MIGRATIONS: string[] = [
   // 1: initial schema

@@ -173,6 +173,11 @@ export function formatDateShortWithYear(iso: string): string {
   return fmt(iso, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+/** "Sep 29" */
+export function formatMonthDay(iso: string): string {
+  return fmt(iso, { month: 'short', day: 'numeric' });
+}
+
 /** "September 2026" */
 export function formatMonthYear(iso: string): string {
   return fmt(iso, { month: 'long', year: 'numeric' });
