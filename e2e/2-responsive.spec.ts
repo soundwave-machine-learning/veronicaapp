@@ -1,6 +1,7 @@
 /** Layout checks at the required screen sizes, and phone-specific behavior. */
 import { devices, expect, test } from '@playwright/test';
 import { addCleaning } from './helpers';
+import { STORAGE_STATE } from '../playwright.config';
 
 const WIDTHS = [1440, 1024, 768, 390, 320];
 const PAGES = ['/', '/calendar', '/calendar?view=week', '/clients', '/settings'];
@@ -21,7 +22,7 @@ test('seed a client for layout checks', async ({ page }) => {
 
 for (const width of WIDTHS) {
   test(`no sideways scrolling at ${width}px`, async ({ browser }) => {
-    const context = await browser.newContext({ viewport: { width, height: 800 } });
+    const context = await browser.newContext({ viewport: { width, height: 800 }, storageState: STORAGE_STATE });
     const page = await context.newPage();
     for (const path of PAGES) {
       await page.goto(path);
@@ -44,7 +45,7 @@ for (const width of WIDTHS) {
 }
 
 test('phone: key actions are large and texts use the iPhone format', async ({ browser }) => {
-  const context = await browser.newContext({ ...devices['iPhone 13'] });
+  const context = await browser.newContext({ ...devices['iPhone 13'], storageState: STORAGE_STATE });
   const page = await context.newPage();
   await page.goto('/');
   const card = page.getByRole('article', { name: 'Next cleaning: Alexandra Montgomery-Whitfield' });
@@ -62,7 +63,7 @@ test('phone: key actions are large and texts use the iPhone format', async ({ br
 
   // Bottom navigation works by touch.
   await page.locator('.bottomnav').getByRole('link', { name: 'Clients' }).tap();
-  await expect(page.getByRole('heading', { name: 'Clients' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Clients', exact: true })).toBeVisible();
   await context.close();
 });
 

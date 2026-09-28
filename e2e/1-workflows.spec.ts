@@ -197,6 +197,27 @@ test('Workflows 9–12: text, on my way, call and directions links', async ({ pa
   );
 });
 
+test('On a laptop, Call / Text / On My Way / Directions do not break the app', async ({ page, context }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('region', { name: "Today's Schedule" }).getByRole('link', { name: /Maria Johnson/ }).click();
+  const heading = page.getByRole('heading', { name: 'Maria Johnson', level: 1 });
+  for (const name of ['Call', 'Text Customer', 'On My Way']) {
+    await page.getByRole('link', { name }).click();
+    await page.waitForTimeout(300);
+    await expect(heading).toBeVisible();
+  }
+  // Directions opens maps in a new tab and leaves Veronica where it was.
+  // (The maps website itself is stubbed: tests never depend on outside sites.)
+  await context.route('https://www.google.com/**', (route) => route.fulfill({ body: 'maps' }));
+  const [maps] = await Promise.all([context.waitForEvent('page'), page.getByRole('link', { name: 'Directions' }).click()]);
+  expect(maps.url()).toContain('google.com/maps');
+  await maps.close();
+  await expect(heading).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('Missing phone or address hides those buttons instead of erroring', async ({ page }) => {
   await page.goto('/');
   const next = page.getByRole('article', { name: 'Next cleaning: Jennifer Smith' });
