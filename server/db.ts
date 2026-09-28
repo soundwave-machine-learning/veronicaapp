@@ -7,6 +7,7 @@
  * MIGRATIONS — never edit one that has already shipped.
  */
 import Database from 'better-sqlite3';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_BUSINESS_NAME, DEFAULT_ON_MY_WAY_TEMPLATE, DEFAULT_REMINDER_TEMPLATE } from '../shared/templates.js';
@@ -79,6 +80,13 @@ const MIGRATIONS: string[] = [
   CREATE INDEX appointments_client ON appointments(client_id, date);
   CREATE INDEX appointments_series ON appointments(series_id, date);
   `,
+  // 2: private app values (the random key that signs login cookies). Not business data.
+  `
+  CREATE TABLE app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  `,
 ];
 
 export function openDatabase(filename: string): DB {
@@ -95,6 +103,13 @@ export function openDatabase(filename: string): DB {
 
 export function migrate(db: DB): void {
   const current = db.pragma('user_version', { simple: true }) as number;
+  if (current > MIGRATIONS.length) {
+    // Never let older code write to a database created by newer code.
+    throw new Error(
+      `This database was created by a newer version of Veronica (schema ${current}, this version knows ${MIGRATIONS.length}). ` +
+        'Deploy the newer version again instead.',
+    );
+  }
   for (let version = current; version < MIGRATIONS.length; version++) {
     db.transaction(() => {
       db.exec(MIGRATIONS[version]);
@@ -110,4 +125,16 @@ function ensureSettingsRow(db: DB): void {
       (id, business_name, owner_name, business_phone, default_duration_minutes, reminder_template, on_my_way_template, updated_at)
      VALUES (1, ?, '', NULL, 120, ?, ?, ?)`,
   ).run(DEFAULT_BUSINESS_NAME, DEFAULT_REMINDER_TEMPLATE, DEFAULT_ON_MY_WAY_TEMPLATE, new Date().toISOString());
+}
+
+/**
+ * A random secret kept inside the database, used to sign login cookies when
+ * SESSION_SECRET is not set. Created once and reused after restarts.
+ */
+export function getSessionSecret(db: DB): string {
+  const row = db.prepare("SELECT value FROM app_meta WHERE key = 'session_secret'").get() as { value: string } | undefined;
+  if (row) return row.value;
+  const secret = crypto.randomBytes(32).toString('hex');
+  db.prepare("INSERT OR IGNORE INTO app_meta (key, value) VALUES ('session_secret', ?)").run(secret);
+  return (db.prepare("SELECT value FROM app_meta WHERE key = 'session_secret'").get() as { value: string }).value;
 }

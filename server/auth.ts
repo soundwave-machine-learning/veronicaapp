@@ -3,8 +3,12 @@
  *
  * When APP_PASSWORD is set, the whole app asks for that one password and
  * then remembers the device with a signed cookie for a year. There are no
- * user accounts on purpose: one business, one password. Changing
- * APP_PASSWORD (or SESSION_SECRET) signs every device out.
+ * user accounts on purpose: one business, one password.
+ *
+ * Cookies are signed with a key made from a random secret (SESSION_SECRET,
+ * or one generated and kept in the database) plus the password, so changing
+ * APP_PASSWORD or SESSION_SECRET signs every device out, and a cookie can
+ * never be used to guess the password.
  */
 import crypto from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
@@ -20,19 +24,16 @@ export interface AuthConfig {
   secureCookies: boolean;
 }
 
-export function authConfigFromEnv(env: NodeJS.ProcessEnv): AuthConfig {
+/** `storedSecret` is the random secret kept in the database (see getSessionSecret). */
+export function authConfigFromEnv(env: NodeJS.ProcessEnv, storedSecret: string): AuthConfig {
   const password = env.APP_PASSWORD?.trim() || null;
-  const secret =
-    env.SESSION_SECRET?.trim() ||
-    crypto
-      .createHash('sha256')
-      .update(`veronica:${password ?? 'no-password'}`)
-      .digest('hex');
+  const secret = env.SESSION_SECRET?.trim() || storedSecret;
   return { password, secret, secureCookies: env.NODE_ENV === 'production' };
 }
 
-function sign(value: string, secret: string): string {
-  return crypto.createHmac('sha256', secret).update(value).digest('base64url');
+function sign(value: string, config: AuthConfig): string {
+  const key = crypto.createHash('sha256').update(`${config.secret}\u0000${config.password ?? ''}`).digest();
+  return crypto.createHmac('sha256', key).update(value).digest('base64url');
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -43,7 +44,7 @@ function safeEqual(a: string, b: string): boolean {
 
 export function createToken(config: AuthConfig, nowMs = Date.now()): string {
   const payload = `v1.${nowMs + MAX_AGE_MS}`;
-  return `${payload}.${sign(payload, config.secret)}`;
+  return `${payload}.${sign(payload, config)}`;
 }
 
 export function verifyToken(config: AuthConfig, token: string | undefined, nowMs = Date.now()): boolean {
@@ -51,7 +52,7 @@ export function verifyToken(config: AuthConfig, token: string | undefined, nowMs
   const parts = token.split('.');
   if (parts.length !== 3 || parts[0] !== 'v1') return false;
   const payload = `${parts[0]}.${parts[1]}`;
-  if (!safeEqual(parts[2], sign(payload, config.secret))) return false;
+  if (!safeEqual(parts[2], sign(payload, config))) return false;
   const expires = Number(parts[1]);
   return Number.isFinite(expires) && expires > nowMs;
 }
@@ -80,6 +81,15 @@ export function requireAuth(config: AuthConfig) {
 
 const failures = new Map<string, { count: number; first: number }>();
 
+/** Forget old failed attempts so the list can't grow forever. */
+function pruneFailures(nowMs: number) {
+  if (failures.size < 1000) return;
+  for (const [key, record] of failures) {
+    if (nowMs - record.first >= FAILURE_WINDOW_MS) failures.delete(key);
+  }
+  if (failures.size >= 5000) failures.clear();
+}
+
 export function loginHandler(config: AuthConfig) {
   return (req: Request, res: Response) => {
     if (!config.password) {
@@ -89,6 +99,7 @@ export function loginHandler(config: AuthConfig) {
     const key = req.ip ?? 'unknown';
     const record = failures.get(key);
     const nowMs = Date.now();
+    pruneFailures(nowMs);
     if (record && nowMs - record.first < FAILURE_WINDOW_MS && record.count >= MAX_FAILURES) {
       res.status(429).json({ error: 'Too many tries. Please wait 15 minutes and try again.' });
       return;

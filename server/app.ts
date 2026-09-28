@@ -2,7 +2,8 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { DB } from './db.js';
+import { getSessionSecret, type DB } from './db.js';
+import { exportData } from './backup.js';
 import { ConflictError, UserError } from './errors.js';
 import { getSettings, updateSettings } from './settings.js';
 import { archiveClient, createClient, getClient, listClients, restoreClient, updateClient } from './clients.js';
@@ -39,18 +40,21 @@ function queryString(value: unknown): string | undefined {
 
 export function createApp(options: AppOptions) {
   const { db } = options;
-  const auth = options.auth ?? authConfigFromEnv(process.env);
+  const auth = options.auth ?? authConfigFromEnv(process.env, getSessionSecret(db));
   const app = express();
 
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
-  app.use((_req, res, next) => {
+  app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+    // Behind the host's HTTPS proxy, tell browsers to always use HTTPS.
+    if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; " +
+      "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self' data:; " +
         "script-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     );
     next();
@@ -138,14 +142,7 @@ export function createApp(options: AppOptions) {
   api.get('/backup', (_req, res) => {
     const stamp = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Disposition', `attachment; filename="veronica-backup-${stamp}.json"`);
-    res.json({
-      app: 'veronica',
-      exportedAt: new Date().toISOString(),
-      settings: db.prepare('SELECT * FROM settings').all(),
-      clients: db.prepare('SELECT * FROM clients ORDER BY id').all(),
-      series: db.prepare('SELECT * FROM series ORDER BY id').all(),
-      appointments: db.prepare('SELECT * FROM appointments ORDER BY id').all(),
-    });
+    res.json(exportData(db));
   });
 
   api.use((_req, res) => {
@@ -191,7 +188,8 @@ export function createApp(options: AppOptions) {
       res.status(status).json({ error: 'Something about that request was not right. Please try again.' });
       return;
     }
-    if (options.logErrors !== false) console.error(err);
+    // Log what went wrong for the developer, but never the request body (it holds customer details).
+    if (options.logErrors !== false) console.error('Unexpected error:', err instanceof Error ? err.stack : String(err));
     res.status(500).json({ error: 'Something went wrong on our side. Please try again in a moment.' });
   });
 
