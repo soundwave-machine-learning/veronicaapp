@@ -1,0 +1,31 @@
+# Render Blueprint for Veronica (https://render.com/docs/blueprint-spec).
+# Render reads this file when you choose New > Blueprint and pick this repository.
+# See README.md > "Production deployment" for the step-by-step guide.
+services:
+  - type: web
+    name: veronica
+    runtime: node
+    # Persistent disks need a paid instance. "starter" is the smallest one and
+    # is plenty for one cleaning business.
+    plan: starter
+    branch: main
+    autoDeploy: true
+    # --include=dev: the build tools (Vite, TypeScript) are dev dependencies.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    # The database lives here. Everything outside this folder is wiped on every deploy.
+    disk:
+      name: veronica-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_PATH
+        value: /var/data/veronica.db
+      # Render asks for these two when the Blueprint is created (never commit them):
+      - key: APP_PASSWORD
+        sync: false
+      - key: TZ
+        sync: false

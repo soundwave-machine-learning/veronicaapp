@@ -1,15 +1,20 @@
-# Veronica production image: one small Node.js server + a SQLite file on a volume.
+# Veronica as a container: one small Node.js server + a SQLite file on a volume.
+# (The recommended host, Render, builds from render.yaml and does not need this file.
+#  It is here for running Veronica on any other Docker host or a home server.)
+#
 #   docker build -t veronica .
-#   docker run -p 3000:3000 -v veronica-data:/data -e APP_PASSWORD=change-me veronica
+#   docker run -d -p 3000:3000 -v veronica-data:/data \
+#     -e APP_PASSWORD='choose-a-long-password' -e TZ='America/Chicago' veronica
 
-FROM node:22-bookworm-slim AS build
+# Build stage: the full Node image already has the compilers some packages may need.
+FROM node:22-bookworm AS build
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build && npm prune --omit=dev
 
+# Runtime stage: small image, runs as the unprivileged "node" user.
 FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production \

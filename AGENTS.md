@@ -30,6 +30,14 @@ Read this before changing anything. These rules apply to every contributor, huma
 - **Never commit customer production data or secrets:** no real names, phone numbers, addresses, appointments, database files, backups, `.env`, passwords, tokens or keys. Demo data must be clearly fictional.
 - Schema changes go in a **new** migration at the end of `MIGRATIONS` in `server/db.ts`. Never edit a migration that has already shipped.
 
+## Production
+
+- Production runs on Render from the `main` branch (`render.yaml`). The SQLite file must stay on the persistent disk: `DATABASE_PATH=/var/data/veronica.db`. Never point it anywhere a deploy wipes.
+- Keep the production start-up checks (the server refuses to start without `DATABASE_PATH`, or with a missing or short `APP_PASSWORD`). Never weaken authentication to make something easier.
+- The service worker must stay network-first and must never cache `/api/`, so new deployments always reach phones.
+- Never log request bodies or customer details. Errors shown to the owner stay plain sentences.
+- Keep backups restorable: if the schema changes, make sure `npm run restore` still loads older backups (it copies known columns) and extend `tests/api/backup.test.ts`.
+
 ## Engineering
 
 - **Test before merging.** Run `npm run check` (lint, typecheck, unit/API tests, build) and `npm run test:e2e` (browser workflows and screen sizes). Do not merge with failing tests.
